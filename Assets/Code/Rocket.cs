@@ -7,10 +7,23 @@ public class Rocket : MonoBehaviour
 {
     Rigidbody rigidBody;
     AudioSource audioSource;
+
     [SerializeField] float rcsThrust = 100f;
     [SerializeField] float mainThrust = 50f;
     [SerializeField] float fuel = 1000f;
-    bool playerDead = false;
+    [SerializeField] float levelLoadDelay = 2f;
+
+
+    [SerializeField] AudioClip mainEngine;
+    [SerializeField] AudioClip success;
+    [SerializeField] AudioClip death;
+    
+    [SerializeField] ParticleSystem mainEngineParticles;
+    [SerializeField] ParticleSystem successParticles;
+    [SerializeField] ParticleSystem deathParticles;
+
+    enum State {Alive, Dying, Transcending}
+    State state = State.Alive;
 
 
     // Start is called before the first frame update
@@ -23,15 +36,15 @@ public class Rocket : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        if (playerDead != true)
+        if (state == State.Alive)
         {
-            Thrust();
-            Rotate();
+            RespondToThrustInput();
+            RespontToRotateInput();
         }
     }
     
     private void OnCollisionEnter(Collision other) {
-        if (playerDead != false)
+        if (state != State.Alive)
         {
             return;
         }
@@ -45,19 +58,36 @@ public class Rocket : MonoBehaviour
                 fuel = 100;
                 break;
             case "Finish":
-                Invoke("LoadNextScene", 1f);
+                StartSuccessSequence();
                 break;
             default:
-            playerDead = true;
-                Invoke("Restart", 1f);
+                StartDeathSequence();
                 break;
         }
+    }
+
+    private void StartDeathSequence()
+    {
+        state = State.Dying;
+        audioSource.Stop();
+        audioSource.PlayOneShot(death);
+        deathParticles.Play();
+        Invoke("Restart", levelLoadDelay);
+    }
+
+    private void StartSuccessSequence()
+    {
+        state = State.Transcending;
+        audioSource.Stop();
+        audioSource.PlayOneShot(success);
+        successParticles.Play();
+        Invoke("LoadNextScene", levelLoadDelay);
     }
 
     private void Restart()
     {
         SceneManager.LoadScene(0);
-        playerDead = false;
+        state = State.Alive;
     }
 
     private void LoadNextScene()
@@ -65,24 +95,31 @@ public class Rocket : MonoBehaviour
         SceneManager.LoadScene(1);
     }
 
-    private void Thrust()
+    private void RespondToThrustInput()
     {
         if (Input.GetKey(KeyCode.Space) && fuel > 0)
         {
-            rigidBody.AddRelativeForce(Vector3.up * mainThrust);
-            fuel -= 1;
-            if (!audioSource.isPlaying)
-            {
-                audioSource.Play();
-            }
+            ApplyThrust();
         }
         else
         {
             audioSource.Stop();
+            mainEngineParticles.Stop();
         }
     }
 
-    private void Rotate()
+    private void ApplyThrust()
+    {
+        rigidBody.AddRelativeForce(Vector3.up * mainThrust * Time.deltaTime);
+        fuel -= 1;
+        if (!audioSource.isPlaying)
+        {
+            audioSource.PlayOneShot(mainEngine);
+        }
+        mainEngineParticles.Play();
+    }
+
+    private void RespontToRotateInput()
     {
         rigidBody.freezeRotation = true;
         
